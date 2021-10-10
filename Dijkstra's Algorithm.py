@@ -7,6 +7,7 @@ __version__ = '0.0.0'
 
 #for mkRandMap
 from random import randint
+import math
 
 class fileloader:
     def loadfile(filename):
@@ -36,7 +37,7 @@ class fileloader:
             with open(str(filename), mode='a', encoding='utf-8') as savefile:
                 savefile.write(str(data)+'\n')
         savefile.close()
-pass
+    pass
 
 def mkRandMap(npoints, maxdistance=4):
     #make points
@@ -90,9 +91,8 @@ class Dijkstra:
         if self.start in tmpi:
             del tmpi[tmpi.index(self.start)]
             tmpii = []
-            ninelen = (len(self.map)+1)*5
             for pos in tmpi:
-                tmpii.append([pos, int('9'*ninelen), None])
+                tmpii.append([pos, math.inf, None])
             self.priorityQue = [[self.start, 0, None]] + tmpii
         else:
             if not self.start in Dijkstra.sepMap(Dijkstra.fxMapConns(self.map), 0):
@@ -107,9 +107,9 @@ class Dijkstra:
     
     def __str__(self):
         if self.isSolved:
-            toret = 'Solved Dijkstra Map'
+            toret = '<Solved Dijkstra Map>'
         else:
-            toret = 'Unsolved Dijkstra Map'
+            toret = '<Unsolved Dijkstra Map>'
     
     @staticmethod
     def _sort(lst, start):
