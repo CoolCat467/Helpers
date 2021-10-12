@@ -2,203 +2,172 @@
 # Dijkstra's Algorythm (Pathfinding AI)
 # Written by CoolCat467 12/16/2019
 
-NAME = "Dijkstra's Algorythm"
+"Dikestra's Algorythm Implementation."
+
+import math
+#for make_random_map
+import random
+
+__title__ = "Dijkstra's Algorythm"
 __version__ = '0.0.0'
 
-#for mkRandMap
-from random import randint
-import math
-
-class fileloader:
-    def loadfile(filename):
-        filedata = []
-        try:
-            with open(str(filename), mode='r', encoding='utf-8') as loadfile:
-                tmp = []
-                for i in loadfile:
-                    tmp.append(str(i))
-                tmp = str(''.join(tmp))
-                for line in tmp.splitlines():
-                    filedata.append(line)
-                loadfile.close()
-        except FileNotFoundError:
-            fileloader.svfile(filename, '')
-            toret = ['']
-        else:
-            toret = list(filedata)
-        return toret
-
-    def svfile(filename, data, append=False):
-        if not append:
-            with open(str(filename), mode='w', encoding='utf-8') as savefile:
-                for line in data:
-                    savefile.write(str(line)+'\n')
-        else:
-            with open(str(filename), mode='a', encoding='utf-8') as savefile:
-                savefile.write(str(data)+'\n')
-        savefile.close()
-    pass
-
-def mkRandMap(npoints, maxdistance=4):
+def make_random_map(npoints, maxdistance=4):
+    "Return a list of random points that are all interconnected."
     #make points
-    points = []
-    for point in range(npoints):
-        points.append(chr(point + 65))
+    points = [chr(i + 65) for i in range(npoints)]
     #make conns
     conns = []
     pointsii = list(points)
-    for i in range(npoints-1):
-        rp = pointsii[randint(0, len(pointsii)-1)]
-        del pointsii[pointsii.index(rp)]
-        tmpi, tmpii = (0, 0)
-        while abs(tmpi - tmpii) < 1:
-            tmpi = randint(0, len(pointsii))
-            tmpii = randint(0, len(pointsii))
-        tmp = list(pointsii[tmpi:tmpii])
-        conns.append([rp, tmp])
-    #add length values
-    tmp = []
-    for i in conns:
-        cp, to = i
-        tmpi = []
-        for ii in range(len(to)):
-            tmpi.append(randint(1, maxdistance))
-        tmp.append([cp, to, tmpi])
+    for _ in range(npoints-2):
+        cidx = random.randrange(len(pointsii))
+        cpoint = pointsii[cidx]
+        del pointsii[cidx]
+        start, end = (0, 0)
+        while abs(start - end) < 1:
+            start = random.randrange(len(pointsii))
+            end = random.randrange(len(pointsii))
+        topoints = list(pointsii[start:end])
+        lengths = [random.randint(1, maxdistance) for _ in range(len(topoints))]
+        conns.append([cpoint, topoints, lengths])
     #fix conns
-    conns = Dijkstra.fxMapConns(tmp)
-    if not Dijkstra.sepMap(conns, 0) == points:
-        for i in points:
-            if not i in Dijkstra.sepMap(conns, 0):
-                tp = str(i)
-                while tp == i:
-                    tp = points[randint(0, len(points)-1)]
-                conns.append([i, [tp], [randint(1, maxdistance)]])
-        conns = Dijkstra.fxMapConns(conns)
+    conns = Dijkstra.fx_map_conns(conns)
+    if not Dijkstra.sep_map(conns, 0) == points:
+        for point in points:
+            if not point in Dijkstra.sep_map(conns, 0):
+                to_point = point
+                while to_point == point:
+                    to_point = random.choice(points)
+                conns.append([point, [to_point], [random.randint(1, maxdistance)]])
+        conns = Dijkstra.fx_map_conns(conns)
     return conns
 
 class Dijkstra:
-    def __init__(self, maplist, currentpos, topos):
-        self.start = str(currentpos)
-        self.end = str(topos)
-        self.map = Dijkstra._sort(list(maplist), self.start)
-        #MOST IMPORTANT PIECE EVER OR IT CRASH
+    "Dijkstra's Algorythm"
+    def __init__(self, maplist, start, end):
+        self.start = start
+        self.end = end
+        self.map = Dijkstra._sort(maplist, self.start)
+        self.priority_queue = None
+        # Set up priority queue
         self._reset()
-        self.isSolved = False
+        self.is_solved = False
         self.solved = []
     
     def _reset(self):
-        tmpi = Dijkstra.sepMap(self.map, 0)
+        "Set up priority queue and fix connections."
+        tmpi = self.sep_map(self.map, 0)
         if self.start in tmpi:
             del tmpi[tmpi.index(self.start)]
-            tmpii = []
-            for pos in tmpi:
-                tmpii.append([pos, math.inf, None])
-            self.priorityQue = [[self.start, 0, None]] + tmpii
+            tmpii = [[pos, math.inf, None] for pos in tmpi]
+            self.priority_queue = [[self.start, 0, None]] + tmpii
         else:
-            if not self.start in Dijkstra.sepMap(Dijkstra.fxMapConns(self.map), 0):
+            if not self.start in self.sep_map(self.fx_map_conns(self.map), 0):
                 self.solved = [self.start]
-                self.isSolved = True
+                self.is_solved = True
             else:
-                self.map = Dijkstra.fxMapConns(self.map)
+                self.map = self.fx_map_conns(self.map)
                 self._reset()
     
     def __repr__(self):
-        return "Dijkstra(%s, '%s', '%s')" % (str(self.map), self.start, self.end)
+        return f"Dijkstra({self.map}, {self.start:r}, {self.end:f})"
     
     def __str__(self):
-        if self.isSolved:
-            toret = '<Solved Dijkstra Map>'
-        else:
-            toret = '<Unsolved Dijkstra Map>'
+        if self.is_solved:
+            return '<Solved Dijkstra Map>'
+        return '<Unsolved Dijkstra Map>'
     
     @staticmethod
     def _sort(lst, start):
+        "Make sure start in front."
+        lst = list(lst)
         lst.sort()
-        tmp = []
-        for i in lst:
-            tmp.append(i[0])
-        if start in tmp:
-            idx = tmp.index(start)
-            data = [lst[idx]]
-            for i in range(len(tmp)):
-                if not i == idx:
-                    data.append(lst[i])
+        tmp = [i[0] for i in lst]
+        if not start in tmp:
+            raise ValueError(f'{start} not in {lst}!')
+        idx = tmp.index(start)
+        data = [lst[idx]]
+        for i in range(len(tmp)):
+            if not i == idx:
+                data.append(lst[i])
         return data
     
     @staticmethod
-    def sepMap(lst, point):
-        lst, point = list(lst), int(point)
-        tmp = []
-        for i in lst:
-            tmp.append(i[point])
-        return tmp
+    def sep_map(list_, point):
+        "Return all values fron list at index point for each item."
+        return [value[point] for value in list_]
     
     @staticmethod
-    def fxMapConns(conns):
+    def fx_map_conns(conns):
+        "Fix map connections"
         tmp = []
-        mode = 2
-        for i in conns:
-            cp, to, l = i
-            if not cp in Dijkstra.sepMap(tmp, 0):
-                tmp.append([cp, [], []])
-            for ii in to:
-                for ii in range(len(to)):
-                    if not to[ii] in tmp[Dijkstra.sepMap(tmp, 0).index(cp)][1]:
-                        tmp[Dijkstra.sepMap(tmp, 0).index(cp)][1].append(to[ii])
-                        tmp[Dijkstra.sepMap(tmp, 0).index(cp)][2].append(l[ii])
-                    if to[ii] in Dijkstra.sepMap(tmp, 0):
-                        if not cp in tmp[Dijkstra.sepMap(tmp, 0).index(to[ii])][1]:
-                            tmp[Dijkstra.sepMap(tmp, 0).index(to[ii])][1].append(cp)
-                            tmp[Dijkstra.sepMap(tmp, 0).index(to[ii])][2].append(l[ii])
-                    else:
-                        tmp.append([to[ii], [cp], [l[ii]]])
+        for cur_point, to_points, lengths in conns:
+            points = Dijkstra.sep_map(tmp, 0)
+            if not cur_point in points:
+                tmp.append([cur_point, [], []])
+                points.append(cur_point)
+##            for idx in range(len(to_points)):
+            for idx, to_point in enumerate(to_points):
+                cpidx = points.index(cur_point)
+##                if not to_points[idx] in tmp[cpidx][1]:
+##                    tmp[cpidx][1].append(to_points[idx])
+                if not to_point in tmp[cpidx][1]:
+                    tmp[cpidx][1].append(to_point)
+                    tmp[cpidx][2].append(lengths[idx])
+##                if to_points[idx] in points:
+##                    tpidx = points.index(to_points[idx])
+                if to_point in points:
+                    tpidx = points.index(to_point)
+                    if not cur_point in tmp[tpidx][1]:
+                        tmp[tpidx][1].append(cur_point)
+                        tmp[tpidx][2].append(lengths[idx])
+                else:
+                    tmp.append([to_points[idx], [cur_point], [lengths[idx]]])
         tmp.sort()
         return tmp
     
     def solve(self):
-        cp = str(self.start)
-        solved = bool(self.isSolved)
+        "Solve map."
+        cur_point = self.start
+        solved = self.is_solved
         #solve for path
         if not solved:
             while not solved:
-                cpidx = Dijkstra.sepMap(self.map, 0).index(cp)#current point index
+                cpidx = self.sep_map(self.map, 0).index(cur_point)#current point index
                 cpdata = self.map[cpidx]#current point data
                 
                 for i in cpdata[1]:#for each connected point
                     
-                    copidx = Dijkstra.sepMap(self.map, 0).index(i)#connected point index
+                    copidx = self.sep_map(self.map, 0).index(i)#connected point index
                     copdata = self.map[copidx]#connected point data
-                    num = copdata[2][copdata[1].index(cp)] + self.priorityQue[cpidx][1]
-                    if self.priorityQue[copidx][0] != cp and (not num > 99999):
-                        self.priorityQue[copidx][1] = num
-                        self.priorityQue[copidx][2] = cp
+                    num = copdata[2][copdata[1].index(cur_point)] + self.priority_queue[cpidx][1]
+                    if self.priority_queue[copidx][0] != cur_point and num != math.inf:
+                        self.priority_queue[copidx][1] = num
+                        self.priority_queue[copidx][2] = cur_point
                     
-                p, l, t = self.priorityQue[cpidx]
-                self.solved.append([p, t, l])
-                #make minni list so we don't choose an alteaty solved pos
-                tmpque = list(self.priorityQue)
-                for i in Dijkstra.sepMap(self.solved, 0):
-                    del tmpque[Dijkstra.sepMap(tmpque, 0).index(i)]
+                point, length, to_points = self.priority_queue[cpidx]
+                self.solved.append([point, to_points, length])
+                # Make mini list so we don't choose an already solved pos
+                avoid = self.sep_map(self.solved, 0)
+                tmpque = [point for point in self.priority_queue if not point[0] in avoid]
                 #if we still solving
-                if not ((self.end in Dijkstra.sepMap(self.solved, 0)) or (len(tmpque) == 0)):
-                    num = min(Dijkstra.sepMap(tmpque, 1))
-                    cp = tmpque[Dijkstra.sepMap(tmpque, 1).index(num)][0]
+                if not ((self.end in self.sep_map(self.solved, 0)) or not tmpque):
+                    num = min(self.sep_map(tmpque, 1))
+                    cur_point = tmpque[self.sep_map(tmpque, 1).index(num)][0]
                 else:
                     solved = True
-            solved = self.isSolved
+            solved = self.is_solved
             #assemble path
             self.solved.reverse()
             mmap = list(self.solved)
-            self.priorityQue, self.solved = self.solved, []
+            self.priority_queue, self.solved = self.solved, []
             while not solved:
-                cpidx = Dijkstra.sepMap(mmap, 0).index(cp)#current point index
+                cpidx = self.sep_map(mmap, 0).index(cur_point)#current point index
                 cpdata = mmap[cpidx]
                 self.solved = [cpdata[0]] + self.solved
-                cp = cpdata[1]
-                solved = ((self.start in self.solved) or (cp == None))
-            self.isSolved = True
+                cur_point = cpdata[1]
+                solved = self.start in self.solved or cur_point is None
+            self.is_solved = True
         return self.solved
-    pass
 
 #original testing map
 #cmap = [['A', ['B', 'C', 'D'], [1, 1, 1]], ['B', ['A', 'D'], [1, 1]], ['C', ['A'], [1]], ['D', ['A', 'B', 'E'], [1, 1, 1]], ['E', ['D', 'F'], [1, 1]], ['F', ['E'], [1]]]
@@ -211,21 +180,29 @@ class Dijkstra:
 #print(cmap)
 #print(damap.solve())
 
-if __name__ == '__main__':
-    filename = str(input('Filename to save to: '))
+def run():
+    "Run example"
+##    cmap = [['A', ['B', 'C', 'D'], [1, 1, 1]], ['B', ['A', 'D'], [1, 1]], ['C', ['A'], [1]], ['D', ['A', 'B', 'E'], [1, 1, 1]], ['E', ['D', 'F'], [1, 1]], ['F', ['E'], [1]]]
+##    cmap = [['A', ['T', 'K', 'M', 'P'], [4, 3, 1, 2]], ['B', ['T', 'R', 'V'], [1, 2, 4]], ['C', ['S', 'F', 'H', 'I', 'K'], [3, 4, 4, 2, 2]], ['D', ['S', 'T'], [1, 3]], ['E', ['S', 'T', 'R', 'V', 'H', 'K', 'U'], [4, 4, 2, 1, 4, 1, 4]], ['F', ['S', 'C', 'T', 'R', 'V', 'H'], [3, 4, 1, 4, 3, 1]], ['G', ['S'], [2]], ['H', ['S', 'C', 'T', 'R', 'V', 'E', 'F', 'K', 'U'], [4, 4, 1, 1, 1, 4, 1, 1, 3]], ['I', ['S', 'N', 'C', 'T', 'M', 'P', 'R', 'U', 'V'], [4, 1, 2, 3, 1, 2, 1, 2, 3]], ['J', ['L', 'M', 'N', 'O', 'P', 'Q', 'R', 'T', 'U', 'V'], [1, 3, 1, 3, 4, 4, 2, 2, 1, 1]], ['K', ['N', 'C', 'T', 'A', 'R', 'V', 'H', 'E', 'U'], [4, 2, 2, 3, 3, 3, 1, 1, 1]], ['L', ['J', 'N', 'T'], [1, 1, 2]], ['M', ['J', 'N', 'T', 'A', 'I'], [3, 1, 2, 1, 1]], ['N', ['J', 'I', 'K', 'L', 'M', 'P', 'Q', 'R', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'], [1, 1, 4, 1, 1, 2, 4, 1, 4, 4, 4, 3, 4, 4, 3]], ['O', ['J', 'P', 'Q', 'R', 'T', 'U', 'V', 'W', 'X', 'Y'], [3, 2, 3, 3, 3, 2, 2, 1, 1, 2]], ['P', ['J', 'O', 'N', 'T', 'A', 'I', 'W', 'R', 'V'], [4, 2, 2, 3, 2, 2, 3, 1, 3]], ['Q', ['J', 'O', 'N', 'T'], [4, 3, 4, 2]], ['R', ['J', 'O', 'N', 'T', 'I', 'W', 'B', 'E', 'F', 'H', 'K', 'P'], [2, 3, 1, 3, 1, 4, 2, 2, 4, 1, 3, 1]], ['S', ['C', 'D', 'E', 'F', 'G', 'H', 'I'], [3, 1, 4, 3, 2, 4, 4]], ['T', ['J', 'O', 'N', 'A', 'B', 'D', 'E', 'F', 'H', 'I', 'K', 'L', 'M', 'P', 'Q', 'R', 'U'], [2, 3, 4, 4, 1, 3, 4, 1, 1, 3, 2, 2, 2, 3, 2, 3, 2]], ['U', ['J', 'O', 'N', 'T', 'I', 'W', 'H', 'E', 'K'], [1, 2, 4, 2, 2, 1, 3, 4, 1]], ['V', ['J', 'O', 'N', 'I', 'W', 'B', 'E', 'F', 'H', 'K', 'P'], [1, 2, 4, 3, 1, 4, 1, 3, 1, 3, 3]], ['W', ['O', 'N', 'P', 'R', 'U', 'V'], [1, 3, 3, 4, 1, 1]], ['X', ['O', 'N'], [1, 4]], ['Y', ['O', 'N'], [2, 4]], ['Z', ['N'], [3]]]
+##    damap = Dijkstra(cmap, 'A', 'Z')
+##    print(cmap)
+##    print(damap.solve())
+##    return
+##    filename = str(input('Filename to save to: '))
     tcount = 0
     count = 0
     while True:
-        try:
-            cmap = mkRandMap(26)
-            damap = Dijkstra(cmap, 'A', 'Z')
-            solved = damap.solve()
-            if len(solved) > 9:
-                add = str(str((tcount, count))+'\n'+str(cmap)+'\n'+str(solved)+'\n--------\n')
-                fileloader.svfile(filename+'.txt', add, True)
-                count += 1
-            tcount += 1
-            print(tcount, count)
-        except BaseException as e:
-            print('Error : '+str(e))
+        cmap = make_random_map(26)
+        damap = Dijkstra(cmap, 'A', 'Z')
+        solved = damap.solve()
+        if len(solved) > 9:
+            add = str(str((tcount, count))+'\n'+str(cmap)+'\n'+str(solved)+'\n--------\n')
+            print(add)
+            count += 1
+        tcount += 1
+##        print(tcount, count)
+        if count > 1:
             break
+
+if __name__ == '__main__':
+    run()
