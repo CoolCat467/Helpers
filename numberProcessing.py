@@ -28,26 +28,26 @@ SINGLE = {'one' : '1', 'two' : '2', 'three' : '3', 'four' : '4',
 
 PLACELAYERS = ('trillion', 'billion', 'million', 'thousand')
 
-def wordnum(data:str) -> int:
+def text_to_number(data:str) -> int:
     """Return integer representation of a number as words."""
     cur = data.split(' ')
     # get places
     value = 0
     last = 0
     for idx, val in enumerate(cur):
-        isLast = idx == len(cur)-1
-        if isLast or val in PLACELAYERS:
+        is_last = idx == len(cur)-1
+        if is_last or val in PLACELAYERS:
             values = list(map(lambda x: int(FULL[x]), cur[last:idx+1]))
             if 100 in values:
                 hidx = values.index(100)
                 values[hidx-1] *= 100
                 del values[hidx]
-            if not isLast:
+            if not is_last:
                 value += sum(values[:-1])*int(FULL[val])
                 last = idx+1
     return value + sum(values)
 
-def splitBy(value:int, divs:tuple, delzero:bool=False) -> dict:
+def split_by(value:int, divs:tuple, delzero:bool=False) -> dict:
     "Split value into sections defined by divs."
     value = int(value)
     def mod(val:int, num:int) -> tuple:
@@ -56,39 +56,39 @@ def splitBy(value:int, divs:tuple, delzero:bool=False) -> dict:
         return int((val - vmod) // num), vmod
     ret = {}
     for num in sorted(iter(set(divs)), reverse=True):
-        v, value = mod(value, num)
-        if delzero and v == 0:
+        remains, value = mod(value, num)
+        if delzero and remains == 0:
             continue
-        ret[num] = v
+        ret[num] = remains
     return ret
 
-def numword(data: int) -> str:
+def number_to_text(data: int) -> str:
     """Convert number to string."""
-    revfull = {int(FULL[i]):i for i in FULL.keys()}
+    revfull = {int(v):k for k, v in FULL.items()}
     del revfull[0]
-    revsing = {int(SINGLE[i]):i for i in SINGLE.keys()}
+    revsing = {int(v):k for k, v in SINGLE.items()}
     # get parts of full
-    split = splitBy(data, tuple(revfull.keys()), True)
+    split = split_by(data, tuple(revfull.keys()), True)
     text = ''
     # keep track of numbers left to represent
     left = data
-    for k in split:
-        left -= split[k]*k
+    for k, val in split.items():
+        left -= val*k
         # If data to represent in this chunk > 100
         if data-left > 100:
             # Get 100s, 10s, and 1s
-            kval = splitBy(split[k], (100, 10, 1), True)
+            kval = split_by(val, (100, 10, 1), True)
             if 100 in kval:
                 text += revsing[kval[100]]+' '+revfull[100]+' '
             if 10 in kval:
                 text += revfull[kval[10]*10]+' '
             if 1 in kval and left > 10:
-                parts = splitBy(kval[1], revsing.keys(), True)
+                parts = split_by(kval[1], revsing.keys(), True)
                 text += ' '.join(revsing[pk] for pk in parts)+' '
         text += revfull[k]+' '
     return text[:-1]#no trailing space
 
-##def numword(data:int) -> str:
+##def number_to_text(data:int) -> str:
 ##    #input is int
 ##    trillions = ['100000000000000', '1000000000000']
 ##    billions  = ['100000000000',    '1000000000']
@@ -116,7 +116,8 @@ def numword(data: int) -> str:
 ##                        idx = int(tuple(FULL.values()).index(str(int(dtmp))))#index pos
 ##                        tmp.append(lst[idx])#remember tens and one pos
 ##                    else:#if no representation
-##                        pos = int(int(dtmp) - (int(dtmp) % 10))#get position for one less place value
+##                        pos = int(int(dtmp) - (int(dtmp) % 10))
+##                        #get position for one less place value
 ##                        if str(pos) in list(FULL.values()):#
 ##                            idx = int(tuple(FULL.values()).index(str(int(pos))))
 ##                            pos = lst[idx]
@@ -133,40 +134,36 @@ def numword(data: int) -> str:
 ##                        tmp.append('hundred')
 ##                    else:
 ##                        tmp.append(typelist[i])
-##                    cur = int(cur - (int(allplaces[read[i][ii]])) * int(dtmp))#decrease num accordingly
+##                    cur = int(cur - (int(allplaces[read[i][ii]])) * int(dtmp))
+##                    #decrease num accordingly
 ##    cur = tmp
 ##    cur = []
 ##    for i in tmp:#add spaces so it looks nice
 ##        cur.append(i+' ')
 ##    tmp = list(str(''.join(cur)))
 ##    del tmp[len(tmp)-1]
+# pylint: C0301: Line too long (111/100)
 ##    if (''.join(''.join(tmp).split('trillion billion million thousand hundred '))) in tuple(SINGLE.values()):
 ##        tmp = ['error']
 ##    tmp = list(str(''.join(tmp)))
 ##    toret = str(''.join(tmp[0:len(tmp)-1]))
 ##    return toret
 
-def process(data):
-    try:
-        if str(data).isdigit():
-            if int(data) == 0:
-                return 'zero'
-            return numword(int(data))
-        return wordnum(str(data))
-    except BaseException:
-        return 'error'
-
 def run():
-    valuetext = 'five hundred seventy six trillion one hundred twenty seven billion four hundred fifty eight million seven hundred eighty four thousand three hundred thirty two'
+    "Run example."
+    valuetext = "five hundred seventy six trillion one hundred "\
+                "twenty seven billion four hundred fifty eight "\
+                "million seven hundred eighty four thousand three "\
+                "hundred thirty two"
     print(valuetext)
-    value = wordnum(valuetext)
+    value = text_to_number(valuetext)
     print(value)
-    vtext2 = numword(value)
+    vtext2 = number_to_text(value)
     print(vtext2)
     if valuetext == vtext2:
-        print(True)
+        print('True')
     else:
-        print(False)
+        print('False')
 
 if __name__ == '__main__':
     run()
