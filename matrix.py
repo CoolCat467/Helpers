@@ -8,14 +8,14 @@
 
 __title__ = 'Matrix'
 __author__ = 'CoolCat467'
-__version__ = '0.0.0'
+__version__ = '0.0.1'
 __mer_major__ = 0
 __mer_minor__ = 0
-__mer_patch__ = 0
+__mer_patch__ = 1
 
 import math
 from typing import Any, Iterable, Union, Callable
-from functools import wraps, reduce
+from functools import wraps
 
 from vector import Vector4
 
@@ -55,6 +55,18 @@ def onlysquare(function):
             return function(self, *args, **kwargs)
         raise TypeError('Matrix is not a square matrix!')
     return wrapper
+
+def onlydims(n_dims) -> Callable[[Callable], Callable]:
+    "Return wrapper that only runs function if matrix is square."
+    def get_wrapper(function) -> Callable[['Matrix', Any], Any]:
+        "Return a wrapper for function"
+        @wraps(function)
+        def wrapper(self, *args, **kwargs) -> Any:
+            if len(self.shape) == n_dims:
+                return function(self, *args, **kwargs)
+            raise TypeError(f'Matrix is not a {n_dims} dimentional matrix!')
+        return wrapper
+    return get_wrapper
 
 def combine_end(data: Iterable, final: str='and') -> str:
     "Join values of text, and have final with the last one properly."
@@ -113,14 +125,12 @@ def boolop(combine: str='all') -> Callable:
         return wraps(function)(operator)
     return wrapper
 
-multiply = lambda x,y:x*y
-
 class Matrix:
     "Matrix Class"
     __slots__ = ('__m','__shape')
     def __init__(self, data, shape: tuple, dtype: type=tuple):
         self.__shape = shape
-        items = reduce(multiply, self.__shape)
+        items = math.prod(self.__shape)
         data = list(data)
         if len(data) != items:
             data = sum(data, [])
@@ -172,19 +182,21 @@ class Matrix:
         shape = list(self.shape)
         all_reg = True
         last_dim = 1
-        for part in index:
-##            print(part)
+        for iidx, part in enumerate(index):
+            # print(part)
             next_dim = shape.pop()
-            slicelen = reduce(multiply, shape, 1)
+            slicelen = math.prod(shape)
             if not isinstance(part, slice):
 ##                print(f'{part=}')
                 if all_reg:
-                    part = slice(part*slicelen, (part+1)*slicelen)
+                    if iidx+1 < len(index) and index[iidx+1] == slice(None) and slicelen < next_dim:
+                        part = slice(part*next_dim, (part+1)*next_dim)
+                    else:
+                        part = slice(part*slicelen, (part+1)*slicelen)
                 elif self.shape[1] == 1:
                     part = slice(None, None, last_dim)
                 else:
                     part = slice(part, None, last_dim)
-                
 ##                print(f'new {part=}\n')
             else:
                 all_reg = False
@@ -240,7 +252,7 @@ class Matrix:
     @classmethod
     def zeros(cls, shape: tuple) -> 'Matrix':
         "Return Matrix of zeros in given shapes."
-        return cls([0]*reduce(multiply, shape), shape=shape)
+        return cls([0]*math.prod(shape), shape=shape)
     
     @classmethod
     def identity(cls, size: int) -> 'Matrix':
@@ -295,19 +307,16 @@ class Matrix:
     @mapop
     def __ceil__(self) -> 'Matrix':
         "Return matrix but each element is ceil ed"
-        # typecheck: error: Argument 1 to "ceil" has incompatible type "Matrix"; expected "Union[SupportsFloat, SupportsIndex]"
         return math.ceil(self)
     
     @mapop
     def __floor__(self) -> 'Matrix':
         "Return matrix but each element is floored"
-        # typecheck: error: Argument 1 to "floor" has incompatible type "Matrix"; expected "Union[SupportsFloat, SupportsIndex]"
         return math.floor(self)
     
     @mapop
     def __trunc__(self) -> 'Matrix':
         "Return matrix but each element is trunc ed"
-        # typecheck: error: Incompatible return value type (got "int", expected "Matrix")
         return math.trunc(self)
     
     def __bool__(self):
@@ -526,41 +535,65 @@ class Matrix:
             for column_idx in range(rhs.shape[1]):
                 column = rhs[:, column_idx]
 ##                column = rhs_index((slice(None), column_idx))
+                if len(row) != len(column):
+                    raise RuntimeError('Row and column lengths are not equal even though they should be!')
                 results.append(math.fsum(x*y for x, y in zip(row, column)))
         return self.__class__(results, (self.shape[0], rhs.shape[1]))
     
     def minor(self, index: tuple) -> 'Matrix':
         "Return new matrix without index location in any shape"
-        pos_row, pos_col = index
+        dims = len(self.shape)
+        if len(index) != dims:
+            size = 'x'.join(map(str, self.shape))
+            raise IndexError(f'Invalid number of arguments for {size} matrix.')
         results = []
-        for ridx, row in enumerate(self.rows()):
-            if ridx == pos_row:
-                continue
-            for cidx, val in enumerate(row):
-                if cidx == pos_col:
-                    continue
-                results.append(val)
-        return self.__class__(results, (self.shape[0]-1, self.shape[1]-1))
+##        pos_row, pos_col = index
+##        for ridx, row in enumerate(self.rows()):
+##            if ridx == pos_row:
+##                continue
+##            for cidx, val in enumerate(row):
+##                if cidx == pos_col:
+##                    continue
+##                results.append(val)
+        head = [0]*dims
+        for elem in self.elements:
+            keep = True
+            for dim, avoid in enumerate(index):
+                if head[dim] == avoid:
+                    keep = False
+                    break
+            if keep:
+                results.append(elem)
+            head[-1] += 1
+            for idx, dim in reversed(tuple(enumerate(self.shape))):
+                if head[idx] >= dim:
+                    head[idx] = 0
+                    if idx != 0:
+                        head[idx-1] += 1
+        return self.__class__(results, tuple(x-1 for x in self.shape))
     
+    @onlydims(2)
     @onlysquare
-    def determinent(self) -> int:
+    def determinent(self) -> Union[int, float]:
         "Return the determinent of this matrix."
+        if len(self.elements) == 1:
+            return self.elements[0]
+        
         value = 0
         adding = True
         for mult, matrix in ((self[0, x], self.minor((0, x))) for x in range(self.shape[0])):
-            if matrix.shape == (1, 1):
-                val = matrix[0, 0]
-            else:
-                val = matrix.determinent()
-            # typecheck: note: Both left and right operands are unions
-            value += (adding*2-1) * val * mult
+            value += (adding*2-1) * matrix.determinent() * mult
             adding = not adding
         return value
     
+    @onlydims(2)
+    @onlysquare
     def get_pos_cofactor(self, index) -> Union[int, float]:
         "Return cofactor of item at index in this matrix"
         return (-1) ** sum(index) * self.minor(index).determinent()
     
+    @onlydims(2)
+    @onlysquare
     def cofactor(self) -> 'Matrix':
         "Return cofactor of self"
         values = [
@@ -570,11 +603,14 @@ class Matrix:
         ]
         return self.__class__(values, self.shape)
     
+    @onlydims(2)
     def transpose(self) -> 'Matrix':
         "Return transpose of self"
         values = [self[:,x] for x in range(self.shape[1])]
-        return self.__class__(values, self.shape)
+        return self.__class__(values, tuple(reversed(self.shape)))
     
+    @onlydims(2)
+    @onlysquare
     def adjugate(self) -> 'Matrix':
         "Return adjugate of self"
         return self.cofactor().transpose()
@@ -593,6 +629,70 @@ class Matrix44(Matrix):
     __slots__: tuple = tuple()
     def __init__(self, data, shape=(4, 4), dtype=list):
         super().__init__(data, (4, 4), dtype)
+    
+    @property
+    def shape(self):
+        return 4, 4
+    
+    def __matmul__(self, rhs):
+        "Return matrix multiply with rhs."
+        if not hasattr(rhs, 'shape'):
+            raise AttributeError('Right hand side has no `shape` attribute')
+##        if not hasattr(rhs, '__getitem__'):
+##            raise ValueError('Right hand side is not indexable!')
+##        rhs_index = rhs.__getitem__
+##        try:
+##            rhs_index((slice(None), slice(None)))
+##        except TypeError:
+##            rhs_index = lambda x:[rhs.__getitem__(x[1])]
+##        if not hasattr(rhs, 'shape'):
+##            if not hasattr(rhs, '__len__'):
+##                raise AttributeError('Right hand side has no `shape` or `len` attribute')
+##            else:
+##                rhs_shape = (len(rhs), 1)
+##        else:
+##            rhs_shape = rhs.shape
+        if len(rhs.shape) != 2:
+            raise ValueError('Right hand side is more than a two dimensional matrix')
+        if self.shape[1] != rhs.shape[0]:
+            raise ArithmeticError('Right hand side is of an incompatable shape for matrix'
+                                  'multiplication')
+        results = []
+        for row_idx in range(self.shape[0]):
+            row = self[row_idx, :]
+            # row = self.rows()[row_idx]
+            for column_idx in range(rhs.shape[1]):
+                column = rhs[:, column_idx]
+##                column = rhs_index((slice(None), column_idx))
+                # print((row, column))
+                if len(row) != len(column):
+                    raise RuntimeError('Row and column lengths are not equal even though they should be!')
+                results.append(math.fsum(x*y for x, y in zip(row, column)))
+        shape = self.shape[0], rhs.shape[1]
+        if shape == (4, 4):
+            return self.__class__(results, shape)
+        return Matrix(results, shape)
+    
+    @classmethod
+    def identity(cls) -> 'Matrix44':
+        return super().identity(4)
+    
+    @classmethod
+    def zeros(cls) -> 'Matrix44':
+        return super().zeros((4, 4))
+    
+    def minor(self, index: tuple) -> Matrix:
+        "Return new matrix without index location in any shape"
+        pos_row, pos_col = index
+        results = []
+        for ridx, row in enumerate(self.rows()):
+            if ridx == pos_row:
+                continue
+            for cidx, val in enumerate(row):
+                if cidx == pos_col:
+                    continue
+                results.append(val)
+        return Matrix(results, tuple(x-1 for x in self.shape))
     
     # pylint: disable=unused-private-member
     def __get_row_0(self):
@@ -722,21 +822,41 @@ class Matrix44(Matrix):
         return math.fsum((self[0, 0], self[1, 1], self[2, 2], self[3, 3]))
 
 def test():
-    "test"
+    "Test"
     # pylint: disable=invalid-name
     A = Matrix([0, 0, 2, 1, 3, -2, 1, -2, 1], shape=(3, 3))
     X = Matrix([1, -2, 3], shape=(3, 1))
-    print(f'{A @ X == [6, -11, 8]=}')
+    print(f'{A @ X == [6, -11, 8] = }')
     
     A = Matrix([0, 0, 2, 1, 3, -2, 1, -2, 1], shape=(3, 3))
     X = Matrix([-1.1, 1.7, 4.5], shape=(3, 1))
-    print(f'{A @ X == [9, -5, 0]=}')
+    print(f'{A @ X == [9, -5, 0] = }')
     
     A = Matrix([-3, 4, 0, 2, -5, 1, 0, 2, 3], (3, 3))
-    print(f'{A.determinent()==27=}')
+    print(f'{A.determinent() == 27 = }')
+    print(f'{round(A.inverse() @ A) == Matrix.identity(3) = }')
     
-    A = Matrix([-3, 4, 0, 2, -5, 1, 0, 2, 3], (3, 3))
-    print(f'{round(A.inverse() @ A)==Matrix.identity(3)=}')
+    A = Matrix([
+  [-2,  1,  1,  0],
+  [-1,  2, -1,  1],
+  [-2,  3,  3,  2],
+  [ 1,  1,  2,  1]
+], (4, 4))
+    # print(A)
+    # print(A.inverse())
+    print(f'{A.inverse() @ Matrix([0, 1, 6, 5], (4, 1)) == [1, 1, 1, 1] = }')
+    
+    A = Matrix([3, -3, -1,
+                2, -2, 4],
+               (2, 3))
+    B = Matrix([3, -3, 2], (3, 1))
+    print(f'{A @ B == [16, 20] = }')
+    
+    A = Matrix([
+  [-2,  3],
+  [-4,  5]
+], (2, 2))
+    print(f'{A @ A.inverse() == Matrix.identity(2) = }')
 
 if __name__ == '__main__':
     print(f'{__title__} v{__version__}\nProgrammed by {__author__}.')
