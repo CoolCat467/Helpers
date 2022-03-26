@@ -510,34 +510,26 @@ class Matrix:
         "Return matrix multiply with rhs."
         if not hasattr(rhs, 'shape'):
             raise AttributeError('Right hand side has no `shape` attribute')
-##        if not hasattr(rhs, '__getitem__'):
-##            raise ValueError('Right hand side is not indexable!')
-##        rhs_index = rhs.__getitem__
-##        try:
-##            rhs_index((slice(None), slice(None)))
-##        except TypeError:
-##            rhs_index = lambda x:[rhs.__getitem__(x[1])]
-##        if not hasattr(rhs, 'shape'):
-##            if not hasattr(rhs, '__len__'):
-##                raise AttributeError('Right hand side has no `shape` or `len` attribute')
-##            else:
-##                rhs_shape = (len(rhs), 1)
-##        else:
-##            rhs_shape = rhs.shape
         if len(rhs.shape) != 2:
             raise ValueError('Right hand side is more than a two dimensional matrix')
         if self.shape[1] != rhs.shape[0]:
             raise ArithmeticError('Right hand side is of an incompatable shape for matrix'
                                   'multiplication')
         results = []
-        for row_idx in range(self.shape[0]):
-            row = self[row_idx, :]
-            for column_idx in range(rhs.shape[1]):
-                column = rhs[:, column_idx]
-##                column = rhs_index((slice(None), column_idx))
-                if len(row) != len(column):
-                    raise RuntimeError('Row and column lengths are not equal even though they should be!')
-                results.append(math.fsum(x*y for x, y in zip(row, column)))
+##        for row_idx in range(self.shape[0]):
+##            row = self[row_idx, :]
+##            for column_idx in range(rhs.shape[1]):
+##                column = rhs[:, column_idx]
+####                column = rhs_index((slice(None), column_idx))
+##                if len(row) != len(column):
+##                    raise RuntimeError('Row and column lengths are not equal even though they should be!')
+##                results.append(math.fsum(x*y for x, y in zip(row, column)))
+        a = self.elements
+        b = tuple(rhs)
+        for row in range(self.shape[0]):
+            for col in range(rhs.shape[1]):
+                entry = math.fsum(a[self.shape[1] * row + x] * b[rhs.shape[1] * x + col] for x in range(rhs.shape[0]))
+                results.append(entry)
         return self.__class__(results, (self.shape[0], rhs.shape[1]))
     
     def minor(self, index: tuple) -> 'Matrix':
